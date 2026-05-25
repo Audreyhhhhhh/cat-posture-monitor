@@ -16,34 +16,32 @@ body{
 .header h1{font-size:22px;color:#e0a96d;margin-bottom:4px}
 .header p{color:#999;font-size:13px}
 
+/* ---- 桌面端：左右两栏 ---- */
 .main{
   max-width:960px;margin:0 auto;padding:0 16px 32px;
-  display:flex;gap:16px;flex-wrap:wrap;justify-content:center;
+  display:flex;gap:16px;justify-content:center;
 }
+.camera-col{flex:1 1 500px;max-width:640px;min-width:0}
+.panel-col{flex:1 1 260px;max-width:340px;min-width:260px}
 
-/* ---- 摄像头 ---- */
+/* 摄像头卡片 */
 .camera-box{
-  flex:1 1 500px;max-width:640px;min-width:0;
   background:#fff;border-radius:20px;
   box-shadow:0 8px 20px rgba(0,0,0,0.06);
-  display:flex;flex-direction:column;
 }
 .video-wrap{
   position:relative;width:100%;aspect-ratio:4/3;background:#1a1a1a;
   border-radius:20px 20px 0 0;overflow:hidden;
-  flex-shrink:0;
 }
 .video-wrap video,
 .video-wrap canvas{
-  position:absolute;top:0;left:0;width:100%;height:100%;
-  display:block;
+  position:absolute;top:0;left:0;width:100%;height:100%;display:block;
 }
 .video-wrap video{object-fit:cover}
 .camera-placeholder{
   position:absolute;top:0;left:0;width:100%;height:100%;
   display:flex;align-items:center;justify-content:center;
-  color:#888;font-size:14px;flex-direction:column;gap:8px;
-  z-index:1;
+  color:#888;font-size:14px;flex-direction:column;gap:8px;z-index:1;
 }
 .camera-placeholder .cat{font-size:56px}
 
@@ -68,11 +66,8 @@ body{
 .status-dot.bad{background:#e85d5d}
 .status-text{font-size:13px;color:#888}
 
-/* ---- 面板 ---- */
-.panel{
-  flex:1 1 260px;max-width:340px;min-width:260px;
-  display:flex;flex-direction:column;gap:14px;
-}
+/* 面板 */
+.panel-col{display:flex;flex-direction:column;gap:14px}
 .card{
   background:#fff;border-radius:20px;padding:18px 20px;
   box-shadow:0 8px 20px rgba(0,0,0,0.06);
@@ -96,7 +91,6 @@ body{
 }
 .issue-indicator.active{background:#e85d5d;box-shadow:0 0 8px rgba(232,93,93,0.4)}
 
-/* ---- 设置 ---- */
 .section-label{font-size:12px;color:#999;margin-bottom:3px}
 input[type=text],input[type=number]{
   width:100%;padding:10px 12px;border-radius:12px;border:1px solid #eee;
@@ -109,8 +103,7 @@ input:focus{border-color:#e0a96d}
 .toggle-row span{font-size:13px}
 .toggle{
   width:44px;height:24px;border-radius:12px;background:#ddd;
-  position:relative;cursor:pointer;transition:background .3s;
-  flex-shrink:0;
+  position:relative;cursor:pointer;transition:background .3s;flex-shrink:0;
 }
 .toggle.on{background:#e0a96d}
 .toggle::after{
@@ -122,22 +115,20 @@ input:focus{border-color:#e0a96d}
 
 .footer{text-align:center;padding:8px 16px 24px;color:#ccc;font-size:12px}
 
-/* ---- 移动端 ---- */
+/* ==================== 移动端 ==================== */
 @media(max-width:700px){
   .header h1{font-size:19px}
-  .header{padding:16px 12px 10px}
-  .main{flex-direction:column;align-items:stretch;padding:0 0 24px;gap:0}
-  .camera-box{
-    flex:1 1 auto;max-width:none;border-radius:0;
-    box-shadow:none;
+  .header{padding:14px 12px 8px}
+  .main{
+    flex-direction:column;gap:0;padding:0;max-width:none;
   }
+  .camera-col{flex:auto;max-width:none}
+  .panel-col{flex:auto;max-width:none;min-width:0;padding:16px 12px 0;gap:12px}
+
+  .camera-box{border-radius:0;box-shadow:none}
   .video-wrap{border-radius:0;aspect-ratio:1/1}
   .camera-bar{padding:10px 12px}
   .btn{font-size:13px;padding:9px 16px}
-  .panel{
-    flex:1 1 auto;max-width:none;min-width:0;
-    padding:0 12px;gap:12px;margin-top:16px;
-  }
   .card{padding:16px 16px}
 }
 </style>
@@ -150,27 +141,30 @@ input:focus{border-color:#e0a96d}
 </div>
 
 <div class="main">
-
-  <div class="camera-box">
-    <div class="video-wrap" id="videoWrap">
-      <div class="camera-placeholder" id="placeholder">
-        <span class="cat">🐱</span>
-        <span>点击下方按钮开始检测</span>
+  <!-- 摄像头栏 -->
+  <div class="camera-col">
+    <div class="camera-box">
+      <div class="video-wrap" id="videoWrap">
+        <div class="camera-placeholder" id="placeholder">
+          <span class="cat">🐱</span>
+          <span>点击下方按钮开始检测</span>
+        </div>
+        <video id="video" autoplay playsinline style="display:none"></video>
+        <canvas id="canvas" style="display:none"></canvas>
       </div>
-      <video id="video" autoplay playsinline style="display:none"></video>
-      <canvas id="canvas" style="display:none"></canvas>
-    </div>
-    <div class="camera-bar">
-      <button class="btn btn-start" id="btnStart">▶ 开始检测</button>
-      <button class="btn btn-stop" id="btnStop" style="display:none">⏹ 停止</button>
-      <div class="status-row">
-        <span class="status-dot good" id="statusDot"></span>
-        <span class="status-text" id="statusText">就绪</span>
+      <div class="camera-bar">
+        <button class="btn btn-start" id="btnStart">▶ 开始检测</button>
+        <button class="btn btn-stop" id="btnStop" style="display:none">⏹ 停止</button>
+        <div class="status-row">
+          <span class="status-dot good" id="statusDot"></span>
+          <span class="status-text" id="statusText">就绪</span>
+        </div>
       </div>
     </div>
   </div>
 
-  <div class="panel">
+  <!-- 面板栏 -->
+  <div class="panel-col">
     <div class="card">
       <h3>📊 本次检测统计</h3>
       <div class="stats-row">
@@ -209,11 +203,11 @@ input:focus{border-color:#e0a96d}
       </div>
     </div>
   </div>
-
 </div>
 
 <div class="footer">🐾 基于 MediaPipe + WebAssembly · 数据不上传服务器 · 隐私安全</div>
 
+<!-- ver: 2026-05-25-v3 -->
 <script type="module">
 import { PoseLandmarker, FilesetResolver } from
   "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/+esm";
@@ -240,7 +234,6 @@ let loading = false;
 const SMOOTH = 3;
 const recent = { head: [], hunch: [], cross: [] };
 
-// ==================== 初始化 ====================
 async function initPoseLandmarker() {
   if (poseLandmarker) return;
   const vision = await FilesetResolver.forVisionTasks(
@@ -259,41 +252,30 @@ async function initPoseLandmarker() {
   });
 }
 
-// ==================== 检测逻辑 ====================
 function visible(lm) { return lm.visibility >= 0.6; }
-
-function getShoulderWidth(lm, w) {
-  return Math.abs(lm[11].x - lm[12].x) * w;
-}
 
 function isHeadForward(lm, w) {
   if (!visible(lm[7]) || !visible(lm[11])) return false;
-  const sw = getShoulderWidth(lm, w);
+  const sw = Math.abs(lm[11].x - lm[12].x) * w;
   if (sw < 1) return false;
   return (lm[7].x - lm[11].x) * w > sw * 0.15;
-}
-
-function angle(a, b, c) {
-  return Math.abs((Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x)) * 180 / Math.PI);
 }
 
 function isHunchback(lm) {
   const angles = [];
   if (visible(lm[7]) && visible(lm[11]) && visible(lm[23]))
-    angles.push(angle(lm[7], lm[11], lm[23]));
+    angles.push(Math.abs((Math.atan2(lm[23].y-lm[11].y,lm[23].x-lm[11].x)-Math.atan2(lm[7].y-lm[11].y,lm[7].x-lm[11].x))*180/Math.PI));
   if (visible(lm[8]) && visible(lm[12]) && visible(lm[24]))
-    angles.push(angle(lm[8], lm[12], lm[24]));
+    angles.push(Math.abs((Math.atan2(lm[24].y-lm[12].y,lm[24].x-lm[12].x)-Math.atan2(lm[8].y-lm[12].y,lm[8].x-lm[12].x))*180/Math.PI));
   if (!angles.length) return false;
-  return angles.reduce((a,b)=>a+b,0) / angles.length < 150;
+  return angles.reduce((a,b)=>a+b,0)/angles.length < 150;
 }
 
 function isCrossLegs(lm) {
-  if (!visible(lm[25]) || !visible(lm[26]) || !visible(lm[27]) || !visible(lm[28]))
-    return false;
-  const kd = Math.abs(lm[25].x - lm[26].x);
-  const ad = Math.abs(lm[27].x - lm[28].x);
+  if (!visible(lm[25]) || !visible(lm[26]) || !visible(lm[27]) || !visible(lm[28])) return false;
+  const kd = Math.abs(lm[25].x-lm[26].x), ad = Math.abs(lm[27].x-lm[28].x);
   if (ad < 0.001) return false;
-  return (kd / ad) < 0.65;
+  return (kd/ad) < 0.65;
 }
 
 function smooth(name, detected) {
@@ -302,40 +284,28 @@ function smooth(name, detected) {
   return recent[name].filter(Boolean).length >= 2;
 }
 
-// ==================== 绘制 ====================
 function drawLandmarks(result, w, h) {
   ctx.clearRect(0, 0, w, h);
   if (!result.landmarks || !result.landmarks.length) return;
-
   const lm = result.landmarks[0];
-  const connections = [
-    [11,12],[11,23],[12,24],[23,24],
-    [23,25],[24,26],[25,27],[26,28],
-    [11,13],[13,15],[12,14],[14,16],
-    [7,11],[8,12],
-  ];
-
-  ctx.strokeStyle = '#e0a96d';
-  ctx.lineWidth = 2;
-  for (const [a, b] of connections) {
+  const conn = [[11,12],[11,23],[12,24],[23,24],[23,25],[24,26],[25,27],[26,28],[11,13],[13,15],[12,14],[14,16],[7,11],[8,12]];
+  ctx.strokeStyle = '#e0a96d'; ctx.lineWidth = 2;
+  for (const [a,b] of conn) {
     ctx.beginPath();
-    ctx.moveTo(lm[a].x * w, lm[a].y * h);
-    ctx.lineTo(lm[b].x * w, lm[b].y * h);
+    ctx.moveTo(lm[a].x*w, lm[a].y*h);
+    ctx.lineTo(lm[b].x*w, lm[b].y*h);
     ctx.stroke();
   }
-
   for (const p of lm) {
     ctx.beginPath();
-    ctx.arc(p.x * w, p.y * h, 4, 0, 2 * Math.PI);
+    ctx.arc(p.x*w, p.y*h, 4, 0, 2*Math.PI);
     ctx.fillStyle = p.visibility >= 0.6 ? '#e0a96d' : '#ccc';
     ctx.fill();
   }
 }
 
-// ==================== 语音 & 推送 ====================
 function speak(text) {
-  if (!voiceEnabled) return;
-  if (!window.speechSynthesis) return;
+  if (!voiceEnabled || !window.speechSynthesis) return;
   window.speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
   u.lang = 'zh-CN'; u.rate = 0.9;
@@ -345,75 +315,51 @@ function speak(text) {
 function sendFeishu(msg) {
   const url = document.getElementById('webhookUrl').value.trim();
   if (!feishuEnabled || !url) return;
-  fetch(url, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({msg_type:'text',content:{text:msg}}),
-  }).catch(() => {});
+  fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({msg_type:'text',content:{text:msg}})}).catch(()=>{});
 }
 
-// ==================== 主循环 ====================
 async function detectLoop() {
   if (!running) return;
-
   const now = performance.now();
-  const w = video.videoWidth;
-  const h = video.videoHeight;
-  if (!w || !h) {
-    animFrameId = requestAnimationFrame(detectLoop);
-    return;
-  }
-  canvas.width = w;
-  canvas.height = h;
-
+  const w = video.videoWidth, h = video.videoHeight;
+  if (!w || !h) { animFrameId = requestAnimationFrame(detectLoop); return; }
+  canvas.width = w; canvas.height = h;
   const result = poseLandmarker.detectForVideo(video, now);
   drawLandmarks(result, w, h);
 
   if (result.landmarks && result.landmarks.length) {
     const lm = result.landmarks[0];
-    const criticalOk = visible(lm[11]) && visible(lm[12]) && visible(lm[7]) && visible(lm[8]);
-    if (criticalOk) {
+    if (visible(lm[11]) && visible(lm[12]) && visible(lm[7]) && visible(lm[8])) {
       const head = isHeadForward(lm, w);
       const hunch = isHunchback(lm);
       const cross = isCrossLegs(lm);
-
       updateIndicators(head, hunch, cross);
 
-      const sec = now / 1000;
+      const sec = now/1000;
       const interval = parseInt(document.getElementById('checkInterval').value) || 300;
-
       if (sec - lastCheckTime > interval) {
         lastCheckTime = sec;
         stats.checks++;
         document.getElementById('statChecks').textContent = stats.checks;
-
-        let bad = false;
-        let msg = '⚠️ 坐姿警告：';
-
-        if (smooth('head', head)) { stats.head++; msg += '头前伸 '; bad = true; }
-        if (smooth('hunch', hunch)) { stats.hunch++; msg += '驼背 '; bad = true; }
-        if (smooth('cross', cross)) { stats.cross++; msg += '二郎腿 '; bad = true; }
-
+        let bad = false, msg = '⚠️ 坐姿警告：';
+        if (smooth('head',head)) { stats.head++; msg += '头前伸 '; bad = true; }
+        if (smooth('hunch',hunch)) { stats.hunch++; msg += '驼背 '; bad = true; }
+        if (smooth('cross',cross)) { stats.cross++; msg += '二郎腿 '; bad = true; }
         if (bad) {
           stats.warnings++;
           document.getElementById('statWarnings').textContent = stats.warnings;
-          setStatus(false);
-          speak(msg);
-          sendFeishu(msg);
-        } else {
-          setStatus(true);
-        }
+          setStatus(false); speak(msg); sendFeishu(msg);
+        } else { setStatus(true); }
       }
     }
   }
-
   animFrameId = requestAnimationFrame(detectLoop);
 }
 
-function updateIndicators(head, hunch, cross) {
-  document.getElementById('indHead').classList.toggle('active', head);
-  document.getElementById('indHunch').classList.toggle('active', hunch);
-  document.getElementById('indCross').classList.toggle('active', cross);
+function updateIndicators(h, b, c) {
+  document.getElementById('indHead').classList.toggle('active', h);
+  document.getElementById('indHunch').classList.toggle('active', b);
+  document.getElementById('indCross').classList.toggle('active', c);
 }
 
 function setStatus(good) {
@@ -421,51 +367,39 @@ function setStatus(good) {
   statusText.textContent = good ? '坐姿良好 🐱' : '坐姿有问题！';
 }
 
-// ==================== 按钮事件 ====================
+// ---- 按钮事件 ----
 btnStart.addEventListener('click', async function() {
   if (loading) return;
   loading = true;
   btnStart.disabled = true;
   btnStart.textContent = '⏳ 加载中...';
-
   try {
     await initPoseLandmarker();
-    videoStream = await navigator.mediaDevices.getUserMedia({
-      video: { width: 640, height: 480, facingMode: 'user' }
-    });
+    videoStream = await navigator.mediaDevices.getUserMedia({ video: { width:640, height:480, facingMode:'user' } });
     video.srcObject = videoStream;
     await video.play();
-
     placeholder.style.display = 'none';
     video.style.display = 'block';
     canvas.style.display = 'block';
     btnStart.style.display = 'none';
     btnStop.style.display = 'inline-block';
-
-    running = true;
-    lastCheckTime = 0;
-    stats = { checks: 0, warnings: 0, head: 0, hunch: 0, cross: 0 };
+    running = true; lastCheckTime = 0;
+    stats = { checks:0, warnings:0, head:0, hunch:0, cross:0 };
     document.getElementById('statChecks').textContent = '0';
     document.getElementById('statWarnings').textContent = '0';
     setStatus(true);
-
     animFrameId = requestAnimationFrame(detectLoop);
-  } catch (e) {
+  } catch(e) {
     alert('无法启动摄像头: ' + e.message);
     btnStart.disabled = false;
     btnStart.textContent = '▶ 开始检测';
-  } finally {
-    loading = false;
-  }
+  } finally { loading = false; }
 });
 
 btnStop.addEventListener('click', function() {
   running = false;
   if (animFrameId) cancelAnimationFrame(animFrameId);
-  if (videoStream) {
-    videoStream.getTracks().forEach(t => t.stop());
-    videoStream = null;
-  }
+  if (videoStream) { videoStream.getTracks().forEach(t=>t.stop()); videoStream = null; }
   video.style.display = 'none';
   canvas.style.display = 'none';
   placeholder.style.display = 'flex';
@@ -474,12 +408,10 @@ btnStop.addEventListener('click', function() {
   btnStart.disabled = false;
   btnStart.textContent = '▶ 开始检测';
   updateIndicators(false, false, false);
-  setStatus(true);
   statusDot.className = 'status-dot good';
   statusText.textContent = '已停止';
 });
 
-// ==================== 设置 ====================
 document.getElementById('toggleVoice').addEventListener('click', function() {
   voiceEnabled = !voiceEnabled;
   this.classList.toggle('on', voiceEnabled);

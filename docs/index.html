@@ -24,12 +24,13 @@ body{
 /* ---- 摄像头区域 ---- */
 .camera-box{
   flex:1 1 500px;max-width:640px;min-width:0;
-  background:#fff;border-radius:20px;overflow:hidden;
+  background:#fff;border-radius:20px;
   box-shadow:0 8px 20px rgba(0,0,0,0.06);
 }
 .video-wrap{
   position:relative;width:100%;aspect-ratio:4/3;background:#1a1a1a;
   display:flex;align-items:center;justify-content:center;
+  border-radius:20px 20px 0 0;overflow:hidden;
 }
 .video-wrap video,
 .video-wrap canvas{
@@ -149,6 +150,7 @@ input:focus{border-color:#e0a96d}
     <div class="camera-bar">
       <button class="btn btn-start" id="btnStart">▶ 开始检测</button>
       <button class="btn btn-stop" id="btnStop" style="display:none">⏹ 停止</button>
+      <button class="btn" id="btnSwitch" style="display:none;background:#fff;color:#555;border:1px solid #ddd">🔄 切换镜头</button>
       <div>
         <span class="status-dot good" id="statusDot"></span>
         <span class="status-text" id="statusText">就绪</span>
@@ -213,6 +215,7 @@ const ctx = canvas.getContext('2d');
 const placeholder = document.getElementById('placeholder');
 const btnStart = document.getElementById('btnStart');
 const btnStop = document.getElementById('btnStop');
+const btnSwitch = document.getElementById('btnSwitch');
 const statusDot = document.getElementById('statusDot');
 const statusText = document.getElementById('statusText');
 
@@ -226,6 +229,7 @@ let voiceEnabled = true;
 let feishuEnabled = false;
 let videoStream = null;
 let loading = false;
+let currentFacingMode = 'user'; // 'user' = 前置, 'environment' = 后置
 
 const SMOOTH = 3;
 const recent = { head: [], hunch: [], cross: [] };
@@ -424,7 +428,7 @@ btnStart.addEventListener('click', async function() {
     await initPoseLandmarker();
 
     videoStream = await navigator.mediaDevices.getUserMedia({
-      video: { width: 640, height: 480, facingMode: 'user' }
+      video: { width: 640, height: 480, facingMode: currentFacingMode }
     });
     video.srcObject = videoStream;
     await video.play();
@@ -434,6 +438,7 @@ btnStart.addEventListener('click', async function() {
     canvas.style.display = 'block';
     btnStart.style.display = 'none';
     btnStop.style.display = 'inline-block';
+    btnSwitch.style.display = 'inline-block';
 
     running = true;
     lastCheckTime = 0;
@@ -464,12 +469,45 @@ btnStop.addEventListener('click', function() {
   placeholder.style.display = 'flex';
   btnStart.style.display = 'inline-block';
   btnStop.style.display = 'none';
+  btnSwitch.style.display = 'none';
   btnStart.disabled = false;
   btnStart.textContent = '▶ 开始检测';
   updateIndicators(false, false, false);
   setStatus(true);
   statusDot.className = 'status-dot good';
   statusText.textContent = '已停止';
+});
+
+// ==================== 切换摄像头 ====================
+btnSwitch.addEventListener('click', async function() {
+  if (!running || !videoStream) return;
+  btnSwitch.disabled = true;
+
+  // 切换方向
+  currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+
+  // 停止旧流
+  videoStream.getTracks().forEach(t => t.stop());
+
+  try {
+    const newStream = await navigator.mediaDevices.getUserMedia({
+      video: { width: 640, height: 480, facingMode: currentFacingMode }
+    });
+    videoStream = newStream;
+    video.srcObject = newStream;
+    await video.play();
+  } catch (e) {
+    // 切换失败，回退
+    currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+    const fallback = await navigator.mediaDevices.getUserMedia({
+      video: { width: 640, height: 480, facingMode: currentFacingMode }
+    });
+    videoStream = fallback;
+    video.srcObject = fallback;
+    await video.play();
+  }
+
+  btnSwitch.disabled = false;
 });
 
 // ==================== 设置切换 ====================

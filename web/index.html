@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🐱 猫咪坐姿守护助手</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:#fdf6f0;color:#555;min-height:100vh;
+}
+.header{
+  text-align:center;padding:24px 20px 16px;
+}
+.header h1{font-size:26px;color:#e0a96d;margin-bottom:6px}
+.header p{color:#999;font-size:14px}
+
+.main{
+  max-width:960px;margin:0 auto;padding:0 20px 40px;
+  display:flex;gap:20px;flex-wrap:wrap;justify-content:center;
+}
+
+/* ---- 摄像头区域 ---- */
+.camera-box{
+  flex:1 1 500px;max-width:640px;min-width:320px;
+  background:#fff;border-radius:20px;overflow:hidden;
+  box-shadow:0 8px 20px rgba(0,0,0,0.06);
+  position:relative;
+}
+.video-wrap{position:relative;width:100%;background:#1a1a1a;}
+.video-wrap video,
+.video-wrap canvas{
+  display:block;width:100%;height:auto;
+}
+.video-wrap canvas{position:absolute;top:0;left:0;}
+.camera-placeholder{
+  aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;
+  color:#888;font-size:15px;flex-direction:column;gap:10px;
+}
+.camera-placeholder .cat{font-size:64px}
+
+.camera-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 18px;gap:12px;flex-wrap:wrap;
+}
+.btn{
+  padding:10px 22px;border-radius:22px;border:none;cursor:pointer;
+  font-size:14px;font-weight:600;transition:all .2s;
+}
+.btn-start{background:#e0a96d;color:#fff}
+.btn-start:hover{background:#d4985a}
+.btn-stop{background:#e8c9a0;color:#fff}
+.btn-stop:hover{background:#d4a87a}
+
+.status-dot{
+  display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;
+}
+.status-dot.good{background:#7ecb76}
+.status-dot.bad{background:#e85d5d}
+.status-text{font-size:13px;color:#888}
+
+/* ---- 面板 ---- */
+.panel{
+  flex:0 0 280px;display:flex;flex-direction:column;gap:16px;
+}
+.card{
+  background:#fff;border-radius:20px;padding:20px 22px;
+  box-shadow:0 8px 20px rgba(0,0,0,0.06);
+}
+.card h3{color:#e0a96d;font-size:16px;margin-bottom:14px}
+
+.stats-row{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.stat-item{text-align:center}
+.stat-item .num{font-size:24px;font-weight:bold;color:#e0a96d}
+.stat-item .lbl{font-size:12px;color:#999}
+
+.issues{margin-top:14px}
+.issue-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:8px 0;border-bottom:1px solid #f5f0ea;
+}
+.issue-row:last-child{border-bottom:none}
+.issue-name{font-size:14px}
+.issue-indicator{
+  width:12px;height:12px;border-radius:50%;background:#ddd;transition:background .3s;
+}
+.issue-indicator.active{background:#e85d5d;box-shadow:0 0 8px rgba(232,93,93,0.4)}
+
+/* ---- 设置 ---- */
+.section-label{font-size:13px;color:#999;margin-bottom:4px}
+input[type=text],input[type=number]{
+  width:100%;padding:10px 12px;border-radius:12px;border:1px solid #eee;
+  font-size:13px;outline:none;margin-bottom:10px;background:#faf8f5;
+}
+input:focus{border-color:#e0a96d}
+.toggle-row{
+  display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;
+}
+.toggle-row span{font-size:13px}
+.toggle{
+  width:44px;height:24px;border-radius:12px;background:#ddd;
+  position:relative;cursor:pointer;transition:background .3s;
+}
+.toggle.on{background:#e0a96d}
+.toggle::after{
+  content:'';position:absolute;top:2px;left:2px;
+  width:20px;height:20px;border-radius:50%;background:#fff;
+  transition:transform .3s;
+}
+.toggle.on::after{transform:translateX(20px)}
+
+/* ---- 底部 ---- */
+.footer{text-align:center;padding:10px 20px 30px;color:#ccc;font-size:13px}
+
+@media(max-width:700px){
+  .main{flex-direction:column;align-items:center}
+  .panel{flex:1 1 auto;width:100%;max-width:500px}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🐱 猫咪坐姿守护助手</h1>
+  <p>AI 实时姿态检测 · 浏览器端运行 · 无需安装</p>
+</div>
+
+<div class="main">
+
+  <!-- 摄像头 -->
+  <div class="camera-box">
+    <div class="video-wrap" id="videoWrap">
+      <div class="camera-placeholder" id="placeholder">
+        <span class="cat">🐱</span>
+        <span>点击「开始检测」授权摄像头</span>
+      </div>
+      <video id="video" autoplay playsinline style="display:none"></video>
+      <canvas id="canvas" style="display:none"></canvas>
+    </div>
+    <div class="camera-bar">
+      <button class="btn btn-start" id="btnStart" onclick="startDetection()">▶ 开始检测</button>
+      <button class="btn btn-stop" id="btnStop" onclick="stopDetection()" style="display:none">⏹ 停止</button>
+      <div>
+        <span class="status-dot good" id="statusDot"></span>
+        <span class="status-text" id="statusText">就绪</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 面板 -->
+  <div class="panel">
+    <!-- 实时状态 -->
+    <div class="card">
+      <h3>📊 本次检测统计</h3>
+      <div class="stats-row">
+        <div class="stat-item"><div class="num" id="statChecks">0</div><div class="lbl">检测次数</div></div>
+        <div class="stat-item"><div class="num" id="statWarnings">0</div><div class="lbl">警告次数</div></div>
+      </div>
+      <div class="issues">
+        <div class="issue-row">
+          <span class="issue-name">🙀 头前伸</span>
+          <div class="issue-indicator" id="indHead"></div>
+        </div>
+        <div class="issue-row">
+          <span class="issue-name">😿 驼背</span>
+          <div class="issue-indicator" id="indHunch"></div>
+        </div>
+        <div class="issue-row">
+          <span class="issue-name">🐾 二郎腿</span>
+          <div class="issue-indicator" id="indCross"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 设置 -->
+    <div class="card">
+      <h3>⚙️ 设置</h3>
+      <div class="section-label">飞书 Webhook 地址</div>
+      <input type="text" id="webhookUrl" placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/...">
+      <div class="section-label">检测间隔（秒）</div>
+      <input type="number" id="checkInterval" value="300" min="10" max="3600">
+      <div class="toggle-row">
+        <span>🔔 语音提醒</span>
+        <div class="toggle on" id="toggleVoice" onclick="toggleVoice()"></div>
+      </div>
+      <div class="toggle-row">
+        <span>📨 飞书推送</span>
+        <div class="toggle" id="toggleFeishu" onclick="toggleFeishu()"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">🐾 基于 MediaPipe + WebAssembly · 数据不上传服务器 · 隐私安全</div>
+
+<script type="module">
+// ==================== MediaPipe Pose Landmarker ====================
+import { PoseLandmarker, FilesetResolver, DrawingUtils } from
+  "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/+esm";
+
+// ==================== 全局状态 ====================
+let poseLandmarker = null;
+let running = false;
+let animFrameId = null;
+let lastCheckTime = 0;
+let stats = { checks: 0, warnings: 0, head: 0, hunch: 0, cross: 0 };
+let voiceEnabled = true;
+let feishuEnabled = false;
+let videoStream = null;
+
+// 时间平滑窗口
+const SMOOTH = 3;
+const recent = { head: [], hunch: [], cross: [] };
+
+// DOM 引用
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const placeholder = document.getElementById('placeholder');
+const btnStart = document.getElementById('btnStart');
+const btnStop = document.getElementById('btnStop');
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+
+// ==================== 初始化 PoseLandmarker ====================
+async function initPoseLandmarker() {
+  if (poseLandmarker) return;
+  const vision = await FilesetResolver.forVisionTasks(
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm"
+  );
+  poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+    baseOptions: {
+      modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task",
+      delegate: "GPU"
+    },
+    runningMode: "VIDEO",
+    numPoses: 1,
+    minPoseDetectionConfidence: 0.7,
+    minPosePresenceConfidence: 0.7,
+    minTrackingConfidence: 0.7
+  });
+}
+
+// ==================== 检测逻辑 ====================
+function visible(lm) { return lm.visibility >= 0.6; }
+
+function getShoulderWidth(lm, w) {
+  return Math.abs(lm[11].x - lm[12].x) * w;
+}
+
+function isHeadForward(lm, w) {
+  if (!visible(lm[7]) || !visible(lm[11])) return false;
+  const sw = getShoulderWidth(lm, w);
+  if (sw < 1) return false;
+  return (lm[7].x - lm[11].x) * w > sw * 0.15;
+}
+
+function angle(a, b, c) {
+  const r1 = Math.atan2(c.y - b.y, c.x - b.x);
+  const r2 = Math.atan2(a.y - b.y, a.x - b.x);
+  return Math.abs((r1 - r2) * 180 / Math.PI);
+}
+
+function isHunchback(lm) {
+  const angles = [];
+  if (visible(lm[7]) && visible(lm[11]) && visible(lm[23]))
+    angles.push(angle(lm[7], lm[11], lm[23]));
+  if (visible(lm[8]) && visible(lm[12]) && visible(lm[24]))
+    angles.push(angle(lm[8], lm[12], lm[24]));
+  if (!angles.length) return false;
+  return angles.reduce((a,b)=>a+b,0) / angles.length < 150;
+}
+
+function isCrossLegs(lm) {
+  if (!visible(lm[25]) || !visible(lm[26]) || !visible(lm[27]) || !visible(lm[28]))
+    return false;
+  const kd = Math.abs(lm[25].x - lm[26].x);
+  const ad = Math.abs(lm[27].x - lm[28].x);
+  if (ad < 0.001) return false;
+  return (kd / ad) < 0.65;
+}
+
+function smooth(name, detected) {
+  recent[name].push(detected);
+  if (recent[name].length > SMOOTH) recent[name].shift();
+  return recent[name].filter(Boolean).length >= 2;
+}
+
+// ==================== 绘制 ====================
+function drawLandmarks(result, w, h) {
+  ctx.clearRect(0, 0, w, h);
+  if (!result.landmarks || !result.landmarks.length) return;
+
+  const lm = result.landmarks[0];
+  const connections = [
+    [11,12],[11,23],[12,24],[23,24],
+    [23,25],[24,26],[25,27],[26,28],
+    [11,13],[13,15],[12,14],[14,16],
+    [7,11],[8,12],
+  ];
+
+  // 连线
+  ctx.strokeStyle = '#e0a96d';
+  ctx.lineWidth = 2;
+  for (const [a, b] of connections) {
+    ctx.beginPath();
+    ctx.moveTo(lm[a].x * w, lm[a].y * h);
+    ctx.lineTo(lm[b].x * w, lm[b].y * h);
+    ctx.stroke();
+  }
+
+  // 关键点
+  for (const p of lm) {
+    ctx.beginPath();
+    ctx.arc(p.x * w, p.y * h, 4, 0, 2 * Math.PI);
+    ctx.fillStyle = p.visibility >= 0.6 ? '#e0a96d' : '#ccc';
+    ctx.fill();
+  }
+}
+
+// ==================== 语音 & 推送 ====================
+function speak(text) {
+  if (!voiceEnabled) return;
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'zh-CN'; u.rate = 0.9;
+  window.speechSynthesis.speak(u);
+}
+
+function sendFeishu(msg) {
+  const url = document.getElementById('webhookUrl').value.trim();
+  if (!feishuEnabled || !url) return;
+  fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({msg_type:'text',content:{text:msg}}),
+  }).catch(() => {});
+}
+
+// ==================== 主循环 ====================
+let currentIssues = { head: false, hunch: false, cross: false };
+
+async function detectLoop() {
+  if (!running) return;
+
+  const now = performance.now();
+  const w = video.videoWidth;
+  const h = video.videoHeight;
+  canvas.width = w;
+  canvas.height = h;
+
+  const result = poseLandmarker.detectForVideo(video, now);
+  drawLandmarks(result, w, h);
+
+  if (result.landmarks && result.landmarks.length) {
+    const lm = result.landmarks[0];
+
+    // 关键点可信度检查
+    const criticalOk = visible(lm[11]) && visible(lm[12]) && visible(lm[7]) && visible(lm[8]);
+    if (criticalOk) {
+      const head = isHeadForward(lm, w);
+      const hunch = isHunchback(lm);
+      const cross = isCrossLegs(lm);
+
+      currentIssues = { head, hunch, cross };
+      updateIndicators(head, hunch, cross);
+
+      const sec = now / 1000;
+      const interval = parseInt(document.getElementById('checkInterval').value) || 300;
+
+      if (sec - lastCheckTime > interval) {
+        lastCheckTime = sec;
+        stats.checks++;
+        document.getElementById('statChecks').textContent = stats.checks;
+
+        let bad = false;
+        let msg = '⚠️ 坐姿警告：';
+
+        if (smooth('head', head)) { stats.head++; msg += '头前伸 '; bad = true; }
+        if (smooth('hunch', hunch)) { stats.hunch++; msg += '驼背 '; bad = true; }
+        if (smooth('cross', cross)) { stats.cross++; msg += '二郎腿 '; bad = true; }
+
+        if (bad) {
+          stats.warnings++;
+          document.getElementById('statWarnings').textContent = stats.warnings;
+          setStatus(false);
+          speak(msg);
+          sendFeishu(msg);
+        } else {
+          setStatus(true);
+        }
+      }
+    }
+  }
+
+  animFrameId = requestAnimationFrame(detectLoop);
+}
+
+function updateIndicators(head, hunch, cross) {
+  document.getElementById('indHead').classList.toggle('active', head);
+  document.getElementById('indHunch').classList.toggle('active', hunch);
+  document.getElementById('indCross').classList.toggle('active', cross);
+}
+
+function setStatus(good) {
+  statusDot.className = 'status-dot ' + (good ? 'good' : 'bad');
+  statusText.textContent = good ? '坐姿良好 🐱' : '坐姿有问题！';
+}
+
+// ==================== 启动 / 停止 ====================
+window.startDetection = async function() {
+  try {
+    await initPoseLandmarker();
+
+    videoStream = await navigator.mediaDevices.getUserMedia({
+      video: { width: 640, height: 480, facingMode: 'user' }
+    });
+    video.srcObject = videoStream;
+    await video.play();
+
+    placeholder.style.display = 'none';
+    video.style.display = 'block';
+    canvas.style.display = 'block';
+    btnStart.style.display = 'none';
+    btnStop.style.display = 'inline-block';
+
+    running = true;
+    lastCheckTime = 0;
+    stats = { checks: 0, warnings: 0, head: 0, hunch: 0, cross: 0 };
+    document.getElementById('statChecks').textContent = '0';
+    document.getElementById('statWarnings').textContent = '0';
+    setStatus(true);
+
+    animFrameId = requestAnimationFrame(detectLoop);
+  } catch (e) {
+    alert('无法启动摄像头: ' + e.message);
+  }
+};
+
+window.stopDetection = function() {
+  running = false;
+  if (animFrameId) cancelAnimationFrame(animFrameId);
+  if (videoStream) {
+    videoStream.getTracks().forEach(t => t.stop());
+    videoStream = null;
+  }
+  video.style.display = 'none';
+  canvas.style.display = 'none';
+  placeholder.style.display = 'flex';
+  btnStart.style.display = 'inline-block';
+  btnStop.style.display = 'none';
+  updateIndicators(false, false, false);
+  setStatus(true);
+  statusDot.className = 'status-dot good';
+  statusText.textContent = '已停止';
+};
+
+// ==================== 设置切换 ====================
+window.toggleVoice = function() {
+  voiceEnabled = !voiceEnabled;
+  document.getElementById('toggleVoice').classList.toggle('on', voiceEnabled);
+};
+
+window.toggleFeishu = function() {
+  feishuEnabled = !feishuEnabled;
+  document.getElementById('toggleFeishu').classList.toggle('on', feishuEnabled);
+  if (feishuEnabled && !document.getElementById('webhookUrl').value.trim()) {
+    alert('请先填写飞书 Webhook 地址');
+  }
+};
+</script>
+</body>
+</html>

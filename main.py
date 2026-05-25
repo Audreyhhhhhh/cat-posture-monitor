@@ -40,34 +40,96 @@ if today not in all_data:
         "date": today
     }
 
+# 时间平滑：缓存最近 N 帧的检测结果，避免单帧噪音
+SMOOTH_WINDOW = 3
+recent_results = {"head_forward": [], "hunchback": [], "cross_legs": []}
+
+def smooth_detection(name, detected):
+    """Returns True only if detected in >=2 of the last SMOOTH_WINDOW frames."""
+    recent_results[name].append(detected)
+    if len(recent_results[name]) > SMOOTH_WINDOW:
+        recent_results[name].pop(0)
+    return sum(recent_results[name]) >= 2
+
 # ------------------- 角度计算工具 -------------------
 def calculate_angle(a, b, c):
     radians = math.atan2(c.y - b.y, c.x - b.x) - math.atan2(a.y - b.y, a.x - b.x)
     angle = abs(math.degrees(radians))
     return angle
 
+MIN_VISIBILITY = 0.6
+
+def visible(*landmarks):
+    """All landmarks have sufficient visibility."""
+    return all(lm.visibility >= MIN_VISIBILITY for lm in landmarks)
+
 # ------------------- 【精准版】姿态识别 -------------------
+
+def get_shoulder_width(landmarks, w):
+    """Shoulder width in pixels — used as reference for scale-invariant thresholds."""
+    return abs(landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER].x -
+               landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].x) * w
+
 def is_head_forward(landmarks, w):
+    """
+    Head-forward: ear is horizontally ahead of shoulder by > 15% of shoulder width.
+    Self-calibrates for camera distance and body size.
+    """
     ear = landmarks[mp_pose.PoseLandmark.LEFT_EAR]
     shoulder = landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER]
+    if not visible(ear, shoulder):
+        return False
+    sw = get_shoulder_width(landmarks, w)
+    if sw < 1:
+        return False
     offset = (ear.x - shoulder.x) * w
-    return offset > 40
+    return offset > sw * 0.15
 
 def is_hunchback(landmarks):
-    ear = landmarks[mp_pose.PoseLandmark.LEFT_EAR]
-    shoulder = landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER]
-    hip = landmarks[mp_pose.PoseLandmark.LEFT_HIP]
-    angle = calculate_angle(ear, shoulder, hip)
-    return angle < 155
+    """
+    Hunchback: torso angle (ear→shoulder→hip) too small.
+    Uses bilateral averaging when both sides are visible.
+    """
+    left_ok = visible(landmarks[mp_pose.PoseLandmark.LEFT_EAR],
+                      landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER],
+                      landmarks[mp_pose.PoseLandmark.LEFT_HIP])
+    right_ok = visible(landmarks[mp_pose.PoseLandmark.RIGHT_EAR],
+                       landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER],
+                       landmarks[mp_pose.PoseLandmark.RIGHT_HIP])
+
+    angles = []
+    if left_ok:
+        angles.append(calculate_angle(
+            landmarks[mp_pose.PoseLandmark.LEFT_EAR],
+            landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER],
+            landmarks[mp_pose.PoseLandmark.LEFT_HIP]))
+    if right_ok:
+        angles.append(calculate_angle(
+            landmarks[mp_pose.PoseLandmark.RIGHT_EAR],
+            landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER],
+            landmarks[mp_pose.PoseLandmark.RIGHT_HIP]))
+
+    if not angles:
+        return False
+    avg_angle = sum(angles) / len(angles)
+    return avg_angle < 150
 
 def is_cross_legs(landmarks):
-    l_knee = landmarks[mp_pose.PoseLandmark.LEFT_KNEE]
-    r_knee = landmarks[mp_pose.PoseLandmark.RIGHT_KNEE]
-    l_ankle = landmarks[mp_pose.PoseLandmark.LEFT_ANKLE]
-    r_ankle = landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE]
-    knee_dist = abs(l_knee.x - r_knee.x)
-    ankle_dist = abs(l_ankle.x - r_ankle.x)
-    return knee_dist < 0.22 and ankle_dist > 0.28
+    """
+    Cross-legs: knees are close together while ankles are apart.
+    Uses ratio (knee_dist / ankle_dist) — scale-invariant.
+    """
+    lk = landmarks[mp_pose.PoseLandmark.LEFT_KNEE]
+    rk = landmarks[mp_pose.PoseLandmark.RIGHT_KNEE]
+    la = landmarks[mp_pose.PoseLandmark.LEFT_ANKLE]
+    ra = landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE]
+    if not visible(lk, rk, la, ra):
+        return False
+    knee_dist = abs(lk.x - rk.x)
+    ankle_dist = abs(la.x - ra.x)
+    if ankle_dist < 0.001:
+        return False
+    return (knee_dist / ankle_dist) < 0.65
 
 # ------------------- 语音提醒 -------------------
 def speak(text):
@@ -206,7 +268,7 @@ def main():
     cap = cv2.VideoCapture(0)
     last_check = time.time()
 
-    with mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5) as pose:
+    with mp_pose.Pose(min_detection_confidence=0.7, min_tracking_confidence=0.7) as pose:
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
@@ -219,6 +281,17 @@ def main():
 
             if res.pose_landmarks:
                 lm = res.pose_landmarks.landmark
+
+                # 关键点可信度检查：双肩 + 双耳必须可见
+                critical = [
+                    mp_pose.PoseLandmark.LEFT_SHOULDER,
+                    mp_pose.PoseLandmark.RIGHT_SHOULDER,
+                    mp_pose.PoseLandmark.LEFT_EAR,
+                    mp_pose.PoseLandmark.RIGHT_EAR,
+                ]
+                if not visible(*(lm[i] for i in critical)):
+                    continue
+
                 current = all_data[today]
                 bad = False
                 msg = "⚠️坐姿警告："
@@ -226,15 +299,19 @@ def main():
                 if time.time() - last_check > CHECK_INTERVAL:
                     current["total_checks"] += 1
 
-                    if is_head_forward(lm, w):
+                    hf = is_head_forward(lm, w)
+                    hb = is_hunchback(lm)
+                    cl = is_cross_legs(lm)
+
+                    if smooth_detection("head_forward", hf):
                         current["head_forward"] += 1
                         msg += "头前伸 "
                         bad = True
-                    if is_hunchback(lm):
+                    if smooth_detection("hunchback", hb):
                         current["hunchback"] += 1
                         msg += "驼背 "
                         bad = True
-                    if is_cross_legs(lm):
+                    if smooth_detection("cross_legs", cl):
                         current["cross_legs"] += 1
                         msg += "二郎腿 "
                         bad = True
@@ -247,7 +324,7 @@ def main():
 
                     last_check = time.time()
 
-                # 实时提示
+                # 实时提示（直接响应，不经过时间平滑）
                 if is_head_forward(lm, w):
                     cv2.putText(frame, "HEAD FORWARD", (50,50), 0, 1, (0,0,255), 2)
                 if is_hunchback(lm):
